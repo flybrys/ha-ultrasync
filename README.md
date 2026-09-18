@@ -5,11 +5,12 @@ Normal HTTP and HTTPS connections remain the default. Existing integrations can 
 legacy SSL in their options without recreating entities.
 See the [legacy ComNav setup guide](docs/legacy-ssl3.md) for configuration and limitations.
 The integration is based on [caronc/ha-ultrasync](https://github.com/caronc/ha-ultrasync).
+This fork requires Home Assistant 2024.12 or newer.
 
 [![Paypal](https://img.shields.io/badge/paypal-donate-green.svg)](https://paypal.me/lead2gold)
 [![Follow](https://img.shields.io/twitter/follow/l2gnux)](https://twitter.com/l2gnux/)<br>
-[![hacs_badge](https://img.shields.io/badge/HACS-Default-orange.svg)](https://github.com/caronc/ha-ultrasync/blob/main/hacs.json)<br>
-[![Project Maintenance](https://img.shields.io/badge/maintainer-%40caronc-blue)](https://github.com/caronc)
+[![hacs_badge](https://img.shields.io/badge/HACS-Custom-orange.svg)](https://github.com/flybrys/ha-ultrasync/blob/main/hacs.json)<br>
+[![Project Maintenance](https://img.shields.io/badge/maintainer-%40flybrys-blue)](https://github.com/flybrys)
 
 ![ZeroWire Hub Image](https://raw.githubusercontent.com/caronc/ultrasync/master/static/zerowire_hub.jpeg)
 

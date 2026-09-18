@@ -6,6 +6,6 @@
   "documentation": "https://github.com/flybrys/ha-ultrasync",
   "issue_tracker": "https://github.com/flybrys/ha-ultrasync/issues",
   "requirements": ["ultrasync==1.0.3", "tlslite-ng==0.8.2"],
-  "codeowners": ["@caronc"],
+  "codeowners": ["@flybrys"],
   "config_flow": true
 }
