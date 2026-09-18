@@ -19,26 +19,46 @@ on a trusted local network.
    have not changed. For a manual installation, replace only
    `/config/custom_components/ultrasync` with this fork's component directory.
 2. Open UltraSync's integration options, enable **Use legacy SSL 3.0**, and
-   enter the panel certificate's SHA-256 fingerprint. The same settings are
-   also available during new integration setup.
-3. Save the options. The existing update listener reloads the integration.
+   leave **Panel certificate SHA-256 fingerprint** blank. The same settings
+   are also available during new integration setup.
+3. Submit the form. The integration connects to the panel without sending
+   credentials and displays its HTTPS address and certificate fingerprint.
+   Check that the address is your panel on a trusted local network, then
+   select **Submit** to trust and save that certificate.
+4. New setup checks your login after confirmation. Saving options reloads
+   the existing integration without opening a second login beforehand.
    Legacy mode uses HTTPS even if the saved host is a bare address or starts
    with `http://`. The default HTTPS port is 443; an explicit port is retained.
 
-Fingerprint input accepts 64 hexadecimal digits, with optional spaces or
-colons. A missing or malformed fingerprint is rejected. The integration never
-automatically accepts a changed certificate or falls back to unencrypted HTTP.
-Options are validated locally; saving them does not open a second login
-session before the integration reloads.
+Certificate discovery performs only an SSL handshake: it sends no HTTP
+request, username or PIN. No credentials are sent using a discovered
+certificate until you confirm it. This is trust on first use: discovery shows
+the certificate presented by that address but does not independently prove
+the device's identity. Use a trusted local connection, or compare the
+fingerprint with one you previously recorded. If discovery fails, the form
+stays open so you can check the panel's connection and try again.
+
+The integration saves the confirmed fingerprint and checks it on every
+connection. It never automatically accepts a changed certificate or falls
+back to unencrypted HTTP. To deliberately replace a saved fingerprint, clear
+the fingerprint field in the options and submit the form, then review and
+confirm the newly discovered certificate before it is saved.
+
+If you already know the fingerprint, you can enter it manually instead of
+discovering it. Input accepts 64 hexadecimal digits, with optional spaces or
+colons; a malformed value is rejected. An entered fingerprint is used directly
+without the discovery confirmation step.
 
 Only one repository should manage the `custom_components/ultrasync` directory.
 When switching from the upstream HACS download, keep the Home Assistant
 integration entry and ensure HACS subsequently updates from this fork.
 See [HACS custom repository instructions](https://www.hacs.xyz/docs/faq/custom_repositories/).
 
-## Obtain a fingerprint without installing anything in Home Assistant
+## Optional command-line discovery and diagnostics
 
-Run the bundled diagnostic tool on a computer that can reach the panel.
+Setup can retrieve the fingerprint for you; no separate tool is required.
+For independent discovery or troubleshooting, run the bundled diagnostic
+tool on a computer that can reach the panel.
 Use Python 3.12 or newer and install its two dependencies in a virtual
 environment:
 

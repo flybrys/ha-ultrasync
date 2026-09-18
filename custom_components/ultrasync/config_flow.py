@@ -1,4 +1,5 @@
 """Config flow for the Interlogix/Hills ComNav UltraSync Hub."""
+
 import logging
 from typing import Any, Dict, Optional
 
@@ -12,9 +13,10 @@ from homeassistant.const import (
 )
 from homeassistant.core import callback, HomeAssistant
 from homeassistant.helpers.typing import ConfigType
+from requests.exceptions import RequestException
 import voluptuous as vol
 
-from .client import create_client, validate_connection_settings
+from .client import create_client, legacy_origin, validate_connection_settings
 from .const import (
     CONF_LEGACY_SSL,
     CONF_SSL_FINGERPRINT,
@@ -22,12 +24,60 @@ from .const import (
     DEFAULT_SCAN_INTERVAL,
     DOMAIN,
 )
+from .legacy_ssl import discover_fingerprint, normalize_fingerprint
 
 _LOGGER = logging.getLogger(__name__)
 
 
 class AuthFailureException(IOError):
     """A general exception we can use to track Authentication failures."""
+
+
+class CertificateDiscoveryError(IOError):
+    """The panel's certificate could not be obtained anonymously."""
+
+
+def _needs_certificate(data):
+    """Discover only when the user has enabled legacy SSL and left the pin blank."""
+    fingerprint = data.get(CONF_SSL_FINGERPRINT, "")
+    return data.get(CONF_LEGACY_SSL, False) and (
+        isinstance(fingerprint, str) and not fingerprint.strip()
+    )
+
+
+class _CertificateConfirmation:
+    """Share anonymous discovery and explicit first-use trust between flows."""
+
+    def _clear_certificate(self):
+        self._pending_certificate_data = None
+        self._pending_certificate_origin = None
+
+    async def _async_discover_certificate(self, data, settings):
+        origin = legacy_origin(settings[CONF_HOST])
+        try:
+            fingerprint = await self.hass.async_add_executor_job(
+                discover_fingerprint, origin
+            )
+        except RequestException as exc:
+            raise CertificateDiscoveryError from exc
+        # Keep the candidate in this flow only. Do not persist or authenticate
+        # until the user submits the confirmation form.
+        self._pending_certificate_data = {
+            **data,
+            CONF_SSL_FINGERPRINT: normalize_fingerprint(fingerprint),
+        }
+        self._pending_certificate_origin = origin
+        return self._certificate_form()
+
+    def _certificate_form(self):
+        return self.async_show_form(
+            step_id="confirm_certificate",
+            data_schema=vol.Schema({}),
+            description_placeholders={
+                "host": self._pending_certificate_origin,
+                "fingerprint": self._pending_certificate_data[CONF_SSL_FINGERPRINT],
+            },
+        )
 
 
 def validate_input(hass: HomeAssistant, data: dict) -> bool:
@@ -42,7 +92,9 @@ def validate_input(hass: HomeAssistant, data: dict) -> bool:
         usync.session.close()
 
 
-class UltraSyncConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
+class UltraSyncConfigFlow(
+    _CertificateConfirmation, config_entries.ConfigFlow, domain=DOMAIN
+):
     """UltraSync config flow."""
 
     VERSION = 1
@@ -64,13 +116,21 @@ class UltraSyncConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         errors = {}
 
         if user_input is not None:
+            self._clear_certificate()
+            self._user_input = dict(user_input)
             try:
+                if _needs_certificate(user_input):
+                    return await self._async_discover_certificate(
+                        user_input, user_input
+                    )
                 validate_connection_settings(user_input)
                 await self.hass.async_add_executor_job(
                     validate_input, self.hass, user_input
                 )
             except ValueError:
                 errors["base"] = "invalid_legacy_ssl"
+            except CertificateDiscoveryError:
+                errors["base"] = "cannot_discover_certificate"
             except AuthFailureException:
                 errors["base"] = "cannot_connect"
             except Exception:  # pylint: disable=broad-except
@@ -82,23 +142,49 @@ class UltraSyncConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     data=user_input,
                 )
 
+        current = getattr(self, "_user_input", {})
         return self.async_show_form(
             step_id="user",
             data_schema=vol.Schema(
                 {
-                    vol.Optional(CONF_NAME, default=DEFAULT_NAME): str,
-                    vol.Required(CONF_HOST): str,
-                    vol.Required(CONF_USERNAME): str,
-                    vol.Required(CONF_PIN): str,
-                    vol.Optional(CONF_LEGACY_SSL, default=False): bool,
-                    vol.Optional(CONF_SSL_FINGERPRINT, default=""): str,
+                    vol.Optional(
+                        CONF_NAME, default=current.get(CONF_NAME, DEFAULT_NAME)
+                    ): str,
+                    vol.Required(
+                        CONF_HOST, default=current.get(CONF_HOST, vol.UNDEFINED)
+                    ): str,
+                    vol.Required(
+                        CONF_USERNAME, default=current.get(CONF_USERNAME, vol.UNDEFINED)
+                    ): str,
+                    vol.Required(
+                        CONF_PIN, default=current.get(CONF_PIN, vol.UNDEFINED)
+                    ): str,
+                    vol.Optional(
+                        CONF_LEGACY_SSL, default=current.get(CONF_LEGACY_SSL, False)
+                    ): bool,
+                    vol.Optional(
+                        CONF_SSL_FINGERPRINT,
+                        default=current.get(CONF_SSL_FINGERPRINT, ""),
+                    ): str,
                 }
             ),
             errors=errors,
         )
 
+    async def async_step_confirm_certificate(self, user_input=None):
+        """Trust the displayed certificate before attempting the first login."""
+        pending = getattr(self, "_pending_certificate_data", None)
+        if pending is None:
+            return self.async_abort(reason="unknown")
+        if user_input is None:
+            return self._certificate_form()
+        # Re-enter the normal validation path with the confirmed pin. If the
+        # certificate changed after discovery, the transport rejects it before
+        # sending credentials; it never silently discovers a replacement.
+        return await self.async_step_user(dict(pending))
 
-class UltraSyncOptionsFlowHandler(config_entries.OptionsFlow):
+
+class UltraSyncOptionsFlowHandler(_CertificateConfirmation, config_entries.OptionsFlow):
     """Handle UltraSync client options."""
 
     async def async_step_init(self, user_input: Optional[ConfigType] = None):
@@ -106,12 +192,17 @@ class UltraSyncOptionsFlowHandler(config_entries.OptionsFlow):
         errors = {}
         current = {**self.config_entry.data, **self.config_entry.options}
         if user_input is not None:
+            self._clear_certificate()
             options = {**self.config_entry.options, **user_input}
+            current.update(user_input)
             try:
+                if _needs_certificate(current):
+                    return await self._async_discover_certificate(options, current)
                 validate_connection_settings(self.config_entry.data, options)
             except ValueError:
                 errors["base"] = "invalid_legacy_ssl"
-                current.update(user_input)
+            except CertificateDiscoveryError:
+                errors["base"] = "cannot_discover_certificate"
             else:
                 return self.async_create_entry(title="", data=options)
 
@@ -132,3 +223,12 @@ class UltraSyncOptionsFlowHandler(config_entries.OptionsFlow):
         return self.async_show_form(
             step_id="init", data_schema=vol.Schema(options_schema), errors=errors
         )
+
+    async def async_step_confirm_certificate(self, user_input=None):
+        """Save the displayed pin without logging out the existing panel user."""
+        pending = getattr(self, "_pending_certificate_data", None)
+        if pending is None:
+            return self.async_abort(reason="unknown")
+        if user_input is None:
+            return self._certificate_form()
+        return await self.async_step_init(dict(pending))

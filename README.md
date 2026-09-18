@@ -3,6 +3,8 @@
 This fork adds optional, certificate-pinned **SSL 3.0 support for legacy Hills ComNav panels**.
 Normal HTTP and HTTPS connections remain the default. Existing integrations can enable
 legacy SSL in their options without recreating entities.
+During setup or in the options, leave the certificate fingerprint blank to
+retrieve it from the panel and confirm it before connecting.
 See the [legacy ComNav setup guide](docs/legacy-ssl3.md) for configuration and limitations.
 The integration is based on [caronc/ha-ultrasync](https://github.com/caronc/ha-ultrasync).
 This fork requires Home Assistant 2024.12 or newer.

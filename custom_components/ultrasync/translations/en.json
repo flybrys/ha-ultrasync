@@ -6,7 +6,8 @@
     },
     "error": {
       "cannot_connect": "Failed to connect",
-      "invalid_legacy_ssl": "Legacy SSL 3.0 requires a valid panel host and its certificate SHA-256 fingerprint (64 hexadecimal characters)."
+      "invalid_legacy_ssl": "Enter a valid panel host. If you enter a certificate fingerprint, it must contain 64 hexadecimal characters; otherwise leave it blank to discover the certificate.",
+      "cannot_discover_certificate": "Could not retrieve the panel's certificate. Check that its address is correct and its HTTPS service is available, then try again."
     },
     "flow_title": "Interlogix UltraSync Hub: {name}",
     "step": {
@@ -17,10 +18,14 @@
           "pin": "PIN Code",
           "username": "Username",
           "legacy_ssl": "Use legacy SSL 3.0 (Hills ComNav only)",
-          "ssl_fingerprint": "Panel certificate SHA-256 fingerprint"
+          "ssl_fingerprint": "Panel certificate SHA-256 fingerprint (optional)"
         },
-        "title": "Connect to Informix UltraSync Hub",
-        "description": "Enable legacy SSL 3.0 only for older Hills ComNav panels that require it. SSL 3.0 is obsolete. When enabled, enter the panel certificate SHA-256 fingerprint (64 hexadecimal characters). The configured host will use HTTPS."
+        "title": "Connect to Interlogix UltraSync Hub",
+        "description": "Enable legacy SSL 3.0 only for older Hills ComNav panels that require it. SSL 3.0 is obsolete; use it on a trusted local network. Leave the fingerprint blank to retrieve and confirm the panel's certificate, or enter a known fingerprint. Legacy mode uses HTTPS."
+      },
+      "confirm_certificate": {
+        "title": "Confirm panel certificate",
+        "description": "A certificate was found at **{host}**.\n\nSHA-256 fingerprint: `{fingerprint}`\n\nCheck that this is your panel on a trusted local network. Select Submit to trust and save this certificate. No username or PIN has been sent during discovery. Future connections must present the same certificate."
       }
     }
   },
@@ -30,13 +35,21 @@
         "data": {
           "scan_interval": "Update frequency (seconds)",
           "legacy_ssl": "Use legacy SSL 3.0 (Hills ComNav only)",
-          "ssl_fingerprint": "Panel certificate SHA-256 fingerprint"
+          "ssl_fingerprint": "Panel certificate SHA-256 fingerprint (optional)"
         },
-        "description": "Enable legacy SSL 3.0 only for older Hills ComNav panels that require it. SSL 3.0 is obsolete. When enabled, enter the panel certificate SHA-256 fingerprint (64 hexadecimal characters). The configured host will use HTTPS."
+        "description": "Enable legacy SSL 3.0 only for older Hills ComNav panels that require it. SSL 3.0 is obsolete; use it on a trusted local network. Leave the fingerprint blank to retrieve and confirm the panel's certificate, or enter a known fingerprint. To replace a saved fingerprint, clear it and confirm the newly retrieved certificate. Legacy mode uses HTTPS."
+      },
+      "confirm_certificate": {
+        "title": "Confirm panel certificate",
+        "description": "A certificate was found at **{host}**.\n\nSHA-256 fingerprint: `{fingerprint}`\n\nCheck that this is your panel on a trusted local network. Select Submit to trust and save this certificate and reload the integration. No username or PIN has been sent during discovery. Future connections must present the same certificate."
       }
     },
     "error": {
-      "invalid_legacy_ssl": "Legacy SSL 3.0 requires a valid panel host and its certificate SHA-256 fingerprint (64 hexadecimal characters)."
+      "invalid_legacy_ssl": "Enter a valid panel host. If you enter a certificate fingerprint, it must contain 64 hexadecimal characters; otherwise leave it blank to discover the certificate.",
+      "cannot_discover_certificate": "Could not retrieve the panel's certificate. Check that its address is correct and its HTTPS service is available, then try again."
+    },
+    "abort": {
+      "unknown": "Unexpected error"
     }
   }
 }
