@@ -5,6 +5,7 @@ import re
 from urllib.parse import urlsplit, urlunsplit
 
 import ultrasync
+from ultrasync.common import NX595EVendor
 
 from .const import CONF_LEGACY_SSL, CONF_SSL_FINGERPRINT
 
@@ -59,7 +60,28 @@ def validate_connection_settings(config: Mapping, options: Mapping | None = None
     normalize_fingerprint(settings.get(CONF_SSL_FINGERPRINT, ""))
 
 
-class _LegacyUltraSync(ultrasync.UltraSync):
+class _UltraSync(ultrasync.UltraSync):
+    """Match the zone visibility used by older ComNav web interfaces."""
+
+    def _zones(self):
+        loaded = super()._zones()
+        if (
+            loaded
+            and self.vendor == NX595EVendor.COMNAV
+            and float(self.version) <= 0.106
+        ):
+            # Old ComNav uses blank names for configured zones and "!" for
+            # unused slots. The upstream parser keeps both on this version.
+            # Preserve original bank numbers for status masks and zone actions.
+            self.zones = {
+                bank: zone
+                for bank, zone in self.zones.items()
+                if zone["name"] != "!"
+            }
+        return loaded
+
+
+class _LegacyUltraSync(_UltraSync):
     """Preserve the origin; ultrasync 1.0.3 otherwise discards URL ports."""
 
     def __init__(self, origin, **kwargs):
@@ -75,7 +97,7 @@ def create_client(config: Mapping, options: Mapping | None = None):
     """Create a standard client, or an explicitly opted-in pinned SSL 3 client."""
     settings = connection_settings(config, options)
     if not settings.get(CONF_LEGACY_SSL, False):
-        return ultrasync.UltraSync(
+        return _UltraSync(
             host=settings["host"], user=settings["username"], pin=settings["pin"]
         )
 

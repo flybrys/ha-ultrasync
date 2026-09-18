@@ -6,6 +6,9 @@ legacy SSL in their options without recreating entities.
 During setup or in the options, leave the certificate fingerprint blank to
 retrieve it from the panel and confirm it before connecting.
 See the [legacy ComNav setup guide](docs/legacy-ssl3.md) for configuration and limitations.
+It also filters unused zones reported by older ComNav panels, so Home Assistant
+shows configured zones instead of all 128 available slots. See the
+[v1.1.3 release notes](docs/releases/1.1.3.md) for changes and upgrade instructions.
 The integration is based on [caronc/ha-ultrasync](https://github.com/caronc/ha-ultrasync).
 This fork requires Home Assistant 2024.12 or newer.
 
@@ -34,7 +37,12 @@ You can only be logged into the ComNav/ZeroWire hub with the same user *once*; a
 1. Add `https://github.com/flybrys/ha-ultrasync` through HACS's **Custom repositories** menu, with type **Integration** ([HACS instructions](https://www.hacs.xyz/docs/faq/custom_repositories/)).
 1. Download this fork's **UltraSync** integration. The upstream integration uses the same `ultrasync` directory; only one repository should manage that directory.
 1. Restart your Home Assistant.
-1. Add "UltraSync" integration in Home Assistant's "**Configuration** -> **Integrations** tab.
+1. For a new installation, add **UltraSync** under **Settings -> Devices & services**.
+   When upgrading, keep your existing integration entry and its configuration.
+
+To update an existing installation of this fork, download **v1.1.3** through
+HACS and restart Home Assistant. You do not need to remove or recreate the
+UltraSync integration.
 
 ### Manual
 
@@ -64,6 +72,19 @@ Zone sensors work the same way and only load what is detected:
 - `ultrasync_zone1state`: The Zone 1 State
 - `ultrasync_zone2state`: The Zone 2 State
 - `ultrasync_zoneXstate`: The Zone X State
+
+On older ComNav web pages (version 0.106 and earlier), the panel marks unused
+zone slots with `!`. These slots are excluded in HTTP, standard HTTPS and
+legacy SSL 3.0 modes. Configured zones keep their original numbers and entity
+IDs, including configured zones with no name. A zone that is **Ready** or
+closed is still included: filtering uses the panel's unused marker, not the
+zone's current state.
+
+After an upgrade, Home Assistant may retain previously created unused zone
+entities as unavailable. The integration does not automatically delete entity
+registry entries. After confirming those entities represent unused slots, you
+can remove them manually from Home Assistant's entity list. Keep your existing
+UltraSync integration entry and configured zone entities.
 
 Output and history sensors also work the same way and only load what is detected:
 
