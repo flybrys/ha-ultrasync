@@ -7,6 +7,11 @@ DEFAULT_SCAN_INTERVAL = 1
 
 DEFAULT_NAME = "UltraSync"
 
+# Explicit opt-in for legacy Hills ComNav HTTPS firmware.
+CONF_LEGACY_SSL = "legacy_ssl"
+CONF_SSL_FINGERPRINT = "ssl_fingerprint"
+LEGACY_UPDATE_TIMEOUT = 60
+
 # Services
 SERVICE_AWAY = "away"
 SERVICE_STAY = "stay"

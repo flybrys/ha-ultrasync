@@ -1,5 +1,11 @@
 # UltraSync Integration for Home Assistant
 
+This fork adds optional, certificate-pinned **SSL 3.0 support for legacy Hills ComNav panels**.
+Normal HTTP and HTTPS connections remain the default. Existing integrations can enable
+legacy SSL in their options without recreating entities.
+See the [legacy ComNav setup guide](docs/legacy-ssl3.md) for configuration and limitations.
+The integration is based on [caronc/ha-ultrasync](https://github.com/caronc/ha-ultrasync).
+
 [![Paypal](https://img.shields.io/badge/paypal-donate-green.svg)](https://paypal.me/lead2gold)
 [![Follow](https://img.shields.io/twitter/follow/l2gnux)](https://twitter.com/l2gnux/)<br>
 [![hacs_badge](https://img.shields.io/badge/HACS-Default-orange.svg)](https://github.com/caronc/ha-ultrasync/blob/main/hacs.json)<br>
@@ -22,14 +28,15 @@ You can only be logged into the ComNav/ZeroWire hub with the same user *once*; a
 ### From HACS
 
 1. Install HACS if you haven't already (see [installation guide](https://hacs.netlify.com/docs/installation/manual)).
-1. Find and install **UltraSync** integration in HACS's "Integrations" tab.
+1. Add `https://github.com/flybrys/ha-ultrasync` through HACS's **Custom repositories** menu, with type **Integration** ([HACS instructions](https://www.hacs.xyz/docs/faq/custom_repositories/)).
+1. Download this fork's **UltraSync** integration. The upstream integration uses the same `ultrasync` directory; only one repository should manage that directory.
 1. Restart your Home Assistant.
 1. Add "UltraSync" integration in Home Assistant's "**Configuration** -> **Integrations** tab.
 
 ### Manual
 
-1. Download and unzip the [repo archive](https://github.com/caronc/ha-ultrasync/archive/master.zip). (You could also click "Download ZIP" after pressing the green button in the repo, alternatively, you could clone the repo from SSH add-on).
-2. Copy contents of the archive/repo into your `/config` directory.
+1. Download and unzip [this fork's archive](https://github.com/flybrys/ha-ultrasync/archive/refs/heads/main.zip).
+2. Copy `custom_components/ultrasync` from the archive into `/config/custom_components/ultrasync`, replacing the existing integration files if present.
 3. Restart your Home Assistant.
 4. Add "UltraSync" integration in Home Assistant's "**Configuration** -> **Integrations** tab.
 

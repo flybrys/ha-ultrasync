@@ -1,17 +1,30 @@
 """Provides the UltraSync DataUpdateCoordinator."""
+import asyncio
 from datetime import timedelta
 import logging
 
 from async_timeout import timeout
-from homeassistant.const import CONF_HOST, CONF_PIN, CONF_SCAN_INTERVAL, CONF_USERNAME
+from homeassistant.const import CONF_SCAN_INTERVAL
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.dispatcher import async_dispatcher_send
-from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
-import ultrasync
+from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
-from .const import DOMAIN, SENSOR_UPDATE_LISTENER
+from .client import create_client
+from .const import (
+    CONF_LEGACY_SSL,
+    DEFAULT_SCAN_INTERVAL,
+    DOMAIN,
+    LEGACY_UPDATE_TIMEOUT,
+    SENSOR_UPDATE_LISTENER,
+)
 
 _LOGGER = logging.getLogger(__name__)
+
+
+def _consume_executor_exception(future):
+    """Retrieve late errors if a timed-out poll is never awaited again."""
+    if not future.cancelled():
+        future.exception()
 
 
 class UltraSyncDataUpdateCoordinator(DataUpdateCoordinator):
@@ -19,11 +32,11 @@ class UltraSyncDataUpdateCoordinator(DataUpdateCoordinator):
 
     def __init__(self, hass: HomeAssistant, *, config: dict, options: dict):
         """Initialize global UltraSync data updater."""
-        self.hub = ultrasync.UltraSync(
-            user=config[CONF_USERNAME],
-            pin=config[CONF_PIN],
-            host=config[CONF_HOST],
-        )
+        self.hub = create_client(config, options)
+        legacy_ssl = options.get(CONF_LEGACY_SSL, config.get(CONF_LEGACY_SSL, False))
+        self._update_timeout = LEGACY_UPDATE_TIMEOUT if legacy_ssl else 10
+        self._legacy_ssl = legacy_ssl
+        self._legacy_update_future = None
 
         self._init = False
 
@@ -33,7 +46,11 @@ class UltraSyncDataUpdateCoordinator(DataUpdateCoordinator):
         self._output_delta = {}
         self._history_delta = {}
 
-        update_interval = timedelta(seconds=options[CONF_SCAN_INTERVAL])
+        update_interval = timedelta(
+            seconds=options.get(
+                CONF_SCAN_INTERVAL, config.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL)
+            )
+        )
 
         super().__init__(
             hass,
@@ -42,15 +59,51 @@ class UltraSyncDataUpdateCoordinator(DataUpdateCoordinator):
             update_interval=update_interval,
         )
 
+    async def _async_legacy_details(self):
+        """Finish one legacy poll before allowing another executor job."""
+        future = self._legacy_update_future
+        if future is None:
+            future = self.hass.async_add_executor_job(
+                lambda: self.hub.details(max_age_sec=0)
+            )
+            future.add_done_callback(_consume_executor_exception)
+            self._legacy_update_future = future
+
+        consumed = False
+        try:
+            async with timeout(self._update_timeout):
+                try:
+                    # Cancelling an executor Future does not stop its worker.
+                    # Retain it across timeouts so polls cannot overlap.
+                    details = await asyncio.shield(future)
+                except asyncio.CancelledError:
+                    consumed = future.cancelled()
+                    raise
+                except Exception:
+                    consumed = True
+                    raise
+                else:
+                    consumed = True
+                    return details
+        finally:
+            if consumed and future.done() and self._legacy_update_future is future:
+                self._legacy_update_future = None
+
     async def _async_update_data(self) -> dict:
         """Fetch data from UltraSync Hub."""
 
         # initialize our response
         response = {}
 
-        # The hub can sometimes take a very long time to respond; wait
-        async with timeout(10):
-            details = await self.hass.async_add_executor_job(lambda: self.hub.details(max_age_sec=0))
+        # The hub can sometimes take a very long time to respond; wait.
+        if self._legacy_ssl:
+            details = await self._async_legacy_details()
+        else:
+            async with timeout(self._update_timeout):
+                details = await self.hass.async_add_executor_job(lambda: self.hub.details(max_age_sec=0))
+
+        if not details:
+            raise UpdateFailed("Unable to retrieve alarm panel status")
 
         # Update our details
         if details:

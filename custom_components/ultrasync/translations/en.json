@@ -1,32 +1,42 @@
 {
-    "config": {
-        "abort": {
-            "single_instance_allowed": "Already configured. Only a single configuration possible.",
-            "unknown": "Unexpected error"
-        },
-        "error": {
-            "cannot_connect": "Failed to connect"
-        },
-        "flow_title": "Interlogix UltraSync Hub: {name}",
-        "step": {
-            "user": {
-                "data": {
-                    "host": "Host",
-                    "name": "Name",
-                    "pin": "PIN Code",
-                    "username": "Username"
-                },
-                "title": "Connect to Informix UltraSync Hub"
-            }
-        }
+  "config": {
+    "abort": {
+      "single_instance_allowed": "Already configured. Only a single configuration possible.",
+      "unknown": "Unexpected error"
     },
-    "options": {
-        "step": {
-            "init": {
-                "data": {
-                    "scan_interval": "Update frequency (seconds)"
-                }
-            }
-        }
+    "error": {
+      "cannot_connect": "Failed to connect",
+      "invalid_legacy_ssl": "Legacy SSL 3.0 requires a valid panel host and its certificate SHA-256 fingerprint (64 hexadecimal characters)."
+    },
+    "flow_title": "Interlogix UltraSync Hub: {name}",
+    "step": {
+      "user": {
+        "data": {
+          "host": "Host",
+          "name": "Name",
+          "pin": "PIN Code",
+          "username": "Username",
+          "legacy_ssl": "Use legacy SSL 3.0 (Hills ComNav only)",
+          "ssl_fingerprint": "Panel certificate SHA-256 fingerprint"
+        },
+        "title": "Connect to Informix UltraSync Hub",
+        "description": "Enable legacy SSL 3.0 only for older Hills ComNav panels that require it. SSL 3.0 is obsolete. When enabled, enter the panel certificate SHA-256 fingerprint (64 hexadecimal characters). The configured host will use HTTPS."
+      }
     }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "data": {
+          "scan_interval": "Update frequency (seconds)",
+          "legacy_ssl": "Use legacy SSL 3.0 (Hills ComNav only)",
+          "ssl_fingerprint": "Panel certificate SHA-256 fingerprint"
+        },
+        "description": "Enable legacy SSL 3.0 only for older Hills ComNav panels that require it. SSL 3.0 is obsolete. When enabled, enter the panel certificate SHA-256 fingerprint (64 hexadecimal characters). The configured host will use HTTPS."
+      }
+    },
+    "error": {
+      "invalid_legacy_ssl": "Legacy SSL 3.0 requires a valid panel host and its certificate SHA-256 fingerprint (64 hexadecimal characters)."
+    }
+  }
 }

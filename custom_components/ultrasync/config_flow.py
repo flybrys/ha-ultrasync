@@ -12,11 +12,16 @@ from homeassistant.const import (
 )
 from homeassistant.core import callback, HomeAssistant
 from homeassistant.helpers.typing import ConfigType
-import ultrasync
 import voluptuous as vol
 
-from .const import DEFAULT_NAME, DEFAULT_SCAN_INTERVAL
-from .const import DOMAIN  # pylint: disable=unused-import
+from .client import create_client, validate_connection_settings
+from .const import (
+    CONF_LEGACY_SSL,
+    CONF_SSL_FINGERPRINT,
+    DEFAULT_NAME,
+    DEFAULT_SCAN_INTERVAL,
+    DOMAIN,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -25,20 +30,16 @@ class AuthFailureException(IOError):
     """A general exception we can use to track Authentication failures."""
 
 
-def validate_input(hass: HomeAssistant, data: dict) -> Dict[str, Any]:
+def validate_input(hass: HomeAssistant, data: dict) -> bool:
     """Validate the user input allows us to connect."""
-
-    usync = ultrasync.UltraSync(
-        host=data[CONF_HOST], user=data[CONF_USERNAME], pin=data[CONF_PIN]
-    )
-
-    # validate by attempting to authenticate with our hub
-
-    if not usync.login():
-        # report our connection issue
-        raise AuthFailureException()
-
-    return True
+    usync = create_client(data)
+    try:
+        if not usync.login():
+            raise AuthFailureException()
+        return True
+    finally:
+        # Setup uses a temporary client; polling creates its own session.
+        usync.session.close()
 
 
 class UltraSyncConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
@@ -51,7 +52,7 @@ class UltraSyncConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     @callback
     def async_get_options_flow(config_entry):
         """Get the options flow for this handler."""
-        return UltraSyncOptionsFlowHandler(config_entry)
+        return UltraSyncOptionsFlowHandler()
 
     async def async_step_user(
         self, user_input: Optional[ConfigType] = None
@@ -64,13 +65,14 @@ class UltraSyncConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
         if user_input is not None:
             try:
+                validate_connection_settings(user_input)
                 await self.hass.async_add_executor_job(
                     validate_input, self.hass, user_input
                 )
-
+            except ValueError:
+                errors["base"] = "invalid_legacy_ssl"
             except AuthFailureException:
                 errors["base"] = "cannot_connect"
-
             except Exception:  # pylint: disable=broad-except
                 _LOGGER.exception("Unexpected exception")
                 return self.async_abort(reason="unknown")
@@ -88,6 +90,8 @@ class UltraSyncConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     vol.Required(CONF_HOST): str,
                     vol.Required(CONF_USERNAME): str,
                     vol.Required(CONF_PIN): str,
+                    vol.Optional(CONF_LEGACY_SSL, default=False): bool,
+                    vol.Optional(CONF_SSL_FINGERPRINT, default=""): str,
                 }
             ),
             errors=errors,
@@ -97,22 +101,34 @@ class UltraSyncConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 class UltraSyncOptionsFlowHandler(config_entries.OptionsFlow):
     """Handle UltraSync client options."""
 
-    def __init__(self, config_entry):
-        """Initialize options flow."""
-        self.config_entry = config_entry
-
     async def async_step_init(self, user_input: Optional[ConfigType] = None):
-        """Manage UltraSync options."""
+        """Manage UltraSync options without opening a second panel session."""
+        errors = {}
+        current = {**self.config_entry.data, **self.config_entry.options}
         if user_input is not None:
-            return self.async_create_entry(title="", data=user_input)
+            options = {**self.config_entry.options, **user_input}
+            try:
+                validate_connection_settings(self.config_entry.data, options)
+            except ValueError:
+                errors["base"] = "invalid_legacy_ssl"
+                current.update(user_input)
+            else:
+                return self.async_create_entry(title="", data=options)
 
-        options = {
+        options_schema = {
             vol.Optional(
                 CONF_SCAN_INTERVAL,
-                default=self.config_entry.options.get(
-                    CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL
-                ),
+                default=current.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL),
             ): int,
+            vol.Optional(
+                CONF_LEGACY_SSL, default=current.get(CONF_LEGACY_SSL, False)
+            ): bool,
+            vol.Optional(
+                CONF_SSL_FINGERPRINT,
+                default=current.get(CONF_SSL_FINGERPRINT, ""),
+            ): str,
         }
 
-        return self.async_show_form(step_id="init", data_schema=vol.Schema(options))
+        return self.async_show_form(
+            step_id="init", data_schema=vol.Schema(options_schema), errors=errors
+        )

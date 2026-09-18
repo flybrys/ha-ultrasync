@@ -8,12 +8,16 @@
           "name": "[%key:common::config_flow::data::name%]",
           "host": "[%key:common::config_flow::data::host%]",
           "username": "[%key:common::config_flow::data::username%]",
-          "pin": "[%key:common::config_flow::data::pin%]"
-        }
+          "pin": "[%key:common::config_flow::data::pin%]",
+          "legacy_ssl": "Use legacy SSL 3.0 (Hills ComNav only)",
+          "ssl_fingerprint": "Panel certificate SHA-256 fingerprint"
+        },
+        "description": "Enable legacy SSL 3.0 only for older Hills ComNav panels that require it. SSL 3.0 is obsolete. When enabled, enter the panel certificate SHA-256 fingerprint (64 hexadecimal characters). The configured host will use HTTPS."
       }
     },
     "error": {
-      "cannot_connect": "[%key:common::config_flow::error::cannot_connect%]"
+      "cannot_connect": "[%key:common::config_flow::error::cannot_connect%]",
+      "invalid_legacy_ssl": "Legacy SSL 3.0 requires a valid panel host and its certificate SHA-256 fingerprint (64 hexadecimal characters)."
     },
     "abort": {
       "single_instance_allowed": "[%key:common::config_flow::abort::single_instance_allowed%]",
@@ -24,9 +28,15 @@
     "step": {
       "init": {
         "data": {
-          "scan_interval": "Update frequency (seconds)"
-        }
+          "scan_interval": "Update frequency (seconds)",
+          "legacy_ssl": "Use legacy SSL 3.0 (Hills ComNav only)",
+          "ssl_fingerprint": "Panel certificate SHA-256 fingerprint"
+        },
+        "description": "Enable legacy SSL 3.0 only for older Hills ComNav panels that require it. SSL 3.0 is obsolete. When enabled, enter the panel certificate SHA-256 fingerprint (64 hexadecimal characters). The configured host will use HTTPS."
       }
+    },
+    "error": {
+      "invalid_legacy_ssl": "Legacy SSL 3.0 requires a valid panel host and its certificate SHA-256 fingerprint (64 hexadecimal characters)."
     }
   }
 }

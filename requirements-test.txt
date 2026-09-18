@@ -1,0 +1,4 @@
+ultrasync==1.0.3
+tlslite-ng==0.8.2
+voluptuous>=0.13
+async-timeout>=4
