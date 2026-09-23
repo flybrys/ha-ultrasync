@@ -73,6 +73,61 @@ class ClientTests(unittest.TestCase):
         self.addCleanup(client.session.close)
         self.assertEqual(client.url, "https://panel.example:8443")
 
+    def test_selected_port_reaches_standard_and_legacy_transports(self):
+        for legacy in (False, True):
+            for scheme in ("http", "https"):
+                with self.subTest(legacy=legacy, scheme=scheme):
+                    client = client_module.create_client(
+                        {
+                            **self.config,
+                            "host": f"{scheme}://panel.example:8443/",
+                            "port": 65535,
+                        },
+                        self.legacy if legacy else None,
+                    )
+                    self.addCleanup(client.session.close)
+                    expected_scheme = "https" if legacy else scheme
+                    self.assertEqual(
+                        client.url, f"{expected_scheme}://panel.example:65535"
+                    )
+                    adapter = client.session.get_adapter(client.url)
+                    if legacy:
+                        self.assertEqual(adapter.origin, ("panel.example", 65535))
+                    else:
+                        self.assertIs(type(adapter), requests.adapters.HTTPAdapter)
+
+    def test_selected_port_in_options_overrides_saved_and_embedded_ports(self):
+        for legacy in (False, True):
+            with self.subTest(legacy=legacy):
+                config = {
+                    **self.config,
+                    "host": "https://panel.example:443",
+                    "port": 8443,
+                }
+                options = {"port": 65535, **(self.legacy if legacy else {})}
+                client = client_module.create_client(config, options)
+                self.addCleanup(client.session.close)
+                self.assertEqual(client.url, "https://panel.example:65535")
+                self.assertEqual(config["port"], 8443)
+                self.assertEqual(config["host"], "https://panel.example:443")
+
+    def test_invalid_selected_port_is_rejected_before_connecting(self):
+        for port in (0, 65536, -1, "65535", 65535.0, True, None):
+            for legacy in (False, True):
+                with self.subTest(port=port, legacy=legacy):
+                    config = {**self.config, "port": port}
+                    options = self.legacy if legacy else None
+                    with self.assertRaises(ValueError):
+                        client_module.validate_connection_settings(config, options)
+                    with self.assertRaises(ValueError):
+                        client_module.create_client(config, options)
+
+    def test_ipv6_selected_port_overrides_embedded_port(self):
+        self.assertEqual(
+            client_module.legacy_origin("http://[2001:db8::1]:8443/", 65535),
+            "https://[2001:db8::1]:65535",
+        )
+
     def test_ipv6_origin_preserved(self):
         self.assertEqual(
             client_module.legacy_origin("https://[2001:db8::1]:8443"),

@@ -3,12 +3,14 @@
 This fork adds optional, certificate-pinned **SSL 3.0 support for legacy Hills ComNav panels**.
 Normal HTTP and HTTPS connections remain the default. Existing integrations can enable
 legacy SSL in their options without recreating entities.
+Setup and options include a **Port** field, defaulting to **65535** unless a
+port is already saved. Select the port configured on your panel.
 During setup or in the options, leave the certificate fingerprint blank to
 retrieve it from the panel and confirm it before connecting.
 See the [legacy ComNav setup guide](docs/legacy-ssl3.md) for configuration and limitations.
 It also filters unused zones reported by older ComNav panels, so Home Assistant
 shows configured zones instead of all 128 available slots. See the
-[v1.1.3 release notes](docs/releases/1.1.3.md) for changes and upgrade instructions.
+[v1.1.4 release notes](docs/releases/1.1.4.md) for changes and upgrade instructions.
 The integration is based on [caronc/ha-ultrasync](https://github.com/caronc/ha-ultrasync).
 This fork requires Home Assistant 2024.12 or newer.
 
@@ -40,7 +42,7 @@ You can only be logged into the ComNav/ZeroWire hub with the same user *once*; a
 1. For a new installation, add **UltraSync** under **Settings -> Devices & services**.
    When upgrading, keep your existing integration entry and its configuration.
 
-To update an existing installation of this fork, download **v1.1.3** through
+To update an existing installation of this fork, download **v1.1.4** through
 HACS and restart Home Assistant. You do not need to remove or recreate the
 UltraSync integration.
 
@@ -54,6 +56,17 @@ UltraSync integration.
 ## Configuration
 
 Go to the integrations page in your configuration and click on new **Integration** -> **UltraSync**.
+
+Enter the panel address in **Host** and choose **Port**. The port defaults to
+**65535**, which is used by some legacy ComNav HTTPS configurations; choose
+your panel's actual port, usually **80** for HTTP or **443** for standard HTTPS.
+The separate Port field overrides a port included in Host. Enable **Use legacy
+SSL 3.0** if your ComNav requires it.
+
+For an existing integration, open **Settings -> Devices & services -> UltraSync
+-> Configure**, set **Port**, and submit. Saving options reloads the integration
+while keeping its entry and entity IDs. Upgrading alone does not change an
+existing connection's port; the new selection takes effect when saved.
 
 **Note**: You can only be logged into the ZeroWire/UltraSync hub with the same user once; a subsequent login with the same user logs out the other. Since Home Assistant (HA) actively polls and maintains a login session to this Hub, it can prevent you from being able to log into at the same time elsewhere (via it's website). It is strongly recommended that you create a second user account on your Hub dedicated for just HA.
 

@@ -6,6 +6,7 @@ DOMAIN = "ultrasync"
 DEFAULT_SCAN_INTERVAL = 1
 
 DEFAULT_NAME = "UltraSync"
+DEFAULT_PORT = 65535
 
 # Explicit opt-in for legacy Hills ComNav HTTPS firmware.
 CONF_LEGACY_SSL = "legacy_ssl"

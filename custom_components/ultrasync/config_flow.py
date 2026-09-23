@@ -2,12 +2,14 @@
 
 import logging
 from typing import Any, Dict, Optional
+from urllib.parse import urlsplit
 
 from homeassistant import config_entries
 from homeassistant.const import (
     CONF_HOST,
     CONF_NAME,
     CONF_PIN,
+    CONF_PORT,
     CONF_SCAN_INTERVAL,
     CONF_USERNAME,
 )
@@ -21,6 +23,7 @@ from .const import (
     CONF_LEGACY_SSL,
     CONF_SSL_FINGERPRINT,
     DEFAULT_NAME,
+    DEFAULT_PORT,
     DEFAULT_SCAN_INTERVAL,
     DOMAIN,
 )
@@ -35,6 +38,18 @@ class AuthFailureException(IOError):
 
 class CertificateDiscoveryError(IOError):
     """The panel's certificate could not be obtained anonymously."""
+
+
+def _port_default(settings):
+    """Keep saved ports, otherwise suggest the legacy ComNav HTTPS port."""
+    if CONF_PORT in settings:
+        return settings[CONF_PORT]
+    host = settings.get(CONF_HOST, "")
+    try:
+        parsed = urlsplit(host if "://" in host else "http://" + host)
+        return parsed.port or DEFAULT_PORT
+    except ValueError:
+        return DEFAULT_PORT
 
 
 def _needs_certificate(data):
@@ -53,7 +68,7 @@ class _CertificateConfirmation:
         self._pending_certificate_origin = None
 
     async def _async_discover_certificate(self, data, settings):
-        origin = legacy_origin(settings[CONF_HOST])
+        origin = legacy_origin(settings[CONF_HOST], settings.get(CONF_PORT))
         try:
             fingerprint = await self.hass.async_add_executor_job(
                 discover_fingerprint, origin
@@ -153,6 +168,9 @@ class UltraSyncConfigFlow(
                     vol.Required(
                         CONF_HOST, default=current.get(CONF_HOST, vol.UNDEFINED)
                     ): str,
+                    vol.Required(CONF_PORT, default=_port_default(current)): vol.All(
+                        int, vol.Range(min=1, max=65535)
+                    ),
                     vol.Required(
                         CONF_USERNAME, default=current.get(CONF_USERNAME, vol.UNDEFINED)
                     ): str,
@@ -207,6 +225,9 @@ class UltraSyncOptionsFlowHandler(_CertificateConfirmation, config_entries.Optio
                 return self.async_create_entry(title="", data=options)
 
         options_schema = {
+            vol.Required(CONF_PORT, default=_port_default(current)): vol.All(
+                int, vol.Range(min=1, max=65535)
+            ),
             vol.Optional(
                 CONF_SCAN_INTERVAL,
                 default=current.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL),

@@ -13,6 +13,7 @@ import unittest
 from unittest.mock import MagicMock, patch
 
 from requests.exceptions import RequestException
+import voluptuous as vol
 
 _COMPONENT = Path(__file__).resolve().parents[1] / "custom_components" / "ultrasync"
 _PACKAGE = "_ultrasync_config_flow_unit_tests"
@@ -72,7 +73,7 @@ def _stub_modules():
     config_entries.CONN_CLASS_LOCAL_POLL = "local_poll"
     homeassistant.config_entries = config_entries
     const = ModuleType("homeassistant.const")
-    for name in ("HOST", "NAME", "PIN", "SCAN_INTERVAL", "USERNAME"):
+    for name in ("HOST", "NAME", "PIN", "PORT", "SCAN_INTERVAL", "USERNAME"):
         setattr(const, "CONF_" + name, name.lower())
     core = ModuleType("homeassistant.core")
     core.HomeAssistant = _HomeAssistantStub
@@ -121,6 +122,7 @@ class ConfigFlowUnitTests(unittest.IsolatedAsyncioTestCase):
         values = result["data_schema"](_DATA)
         self.assertFalse(values["legacy_ssl"])
         self.assertEqual(values["ssl_fingerprint"], "")
+        self.assertEqual(values["port"], 65535)
         self.assertEqual(flow.VERSION, 1)
 
     async def test_existing_entry_without_new_settings_has_safe_defaults(self):
@@ -130,6 +132,7 @@ class ConfigFlowUnitTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(values["scan_interval"], 1)
         self.assertFalse(values["legacy_ssl"])
         self.assertEqual(values["ssl_fingerprint"], "")
+        self.assertEqual(values["port"], 65535)
 
     async def test_options_defaults_inherit_data_and_honor_options_overrides(self):
         data = {
@@ -145,6 +148,7 @@ class ConfigFlowUnitTests(unittest.IsolatedAsyncioTestCase):
                     "scan_interval": 9,
                     "legacy_ssl": True,
                     "ssl_fingerprint": _FINGERPRINT,
+                    "port": 65535,
                 },
             ),
             (
@@ -157,6 +161,7 @@ class ConfigFlowUnitTests(unittest.IsolatedAsyncioTestCase):
                     "scan_interval": 17,
                     "legacy_ssl": False,
                     "ssl_fingerprint": "cd" * 32,
+                    "port": 65535,
                 },
             ),
         )
@@ -165,6 +170,64 @@ class ConfigFlowUnitTests(unittest.IsolatedAsyncioTestCase):
                 flow = self.options_flow(data=data, options=options)
                 result = await flow.async_step_init()
                 self.assertEqual(result["data_schema"]({}), expected)
+
+    async def test_options_port_defaults_preserve_saved_and_embedded_ports(self):
+        for data, options, expected in (
+            ({**_DATA, "host": "https://panel.test:8443"}, {}, 8443),
+            ({**_DATA, "host": "panel.test:8443", "port": 443}, {}, 443),
+            ({**_DATA, "port": 443}, {"port": 65535}, 65535),
+        ):
+            with self.subTest(data=data, options=options):
+                flow = self.options_flow(data=data, options=options)
+                result = await flow.async_step_init()
+                self.assertEqual(result["data_schema"]({})["port"], expected)
+
+    async def test_setup_retry_preserves_selected_or_embedded_port(self):
+        for extra, expected in (({}, 8443), ({"port": 65535}, 65535)):
+            with self.subTest(extra=extra):
+                flow = self.module.UltraSyncConfigFlow()
+                client = MagicMock()
+                client.login.return_value = False
+                with patch.object(self.module, "create_client", return_value=client):
+                    result = await flow.async_step_user(
+                        {**_DATA, "host": "https://panel.test:8443", **extra}
+                    )
+                self.assertEqual(result["errors"], {"base": "cannot_connect"})
+                self.assertEqual(result["data_schema"]({})["port"], expected)
+
+    async def test_setup_and_options_schema_require_port_in_valid_integer_range(self):
+        setup = await self.module.UltraSyncConfigFlow().async_step_user()
+        options = await self.options_flow().async_step_init()
+        for form, required in ((setup, _DATA), (options, {})):
+            for port in (0, -1, 65536, "65535", 65535.0, None):
+                with self.subTest(step=form["step_id"], invalid_port=port):
+                    with self.assertRaises(vol.Invalid):
+                        form["data_schema"]({**required, "port": port})
+            for port in (1, 80, 443, 65535):
+                with self.subTest(step=form["step_id"], valid_port=port):
+                    self.assertEqual(
+                        form["data_schema"]({**required, "port": port})["port"], port
+                    )
+
+    async def test_saving_selected_port_keeps_options_without_login_or_discovery(self):
+        old_options = {"scan_interval": 12, "future_option": "keep"}
+        flow = self.options_flow(
+            data={**_DATA, "legacy_ssl": True, "ssl_fingerprint": _FINGERPRINT},
+            options=old_options,
+        )
+        form = await flow.async_step_init()
+        submitted = form["data_schema"]({"port": 65535})
+        with (
+            patch.object(self.module, "create_client") as factory,
+            patch.object(self.module, "discover_fingerprint") as discover,
+        ):
+            result = await flow.async_step_init(submitted)
+        self.assertEqual(result["type"], "create_entry")
+        self.assertEqual(result["data"], {**old_options, **submitted})
+        self.assertEqual(result["data"]["port"], 65535)
+        self.assertEqual(flow.config_entry.options, old_options)
+        factory.assert_not_called()
+        discover.assert_not_called()
 
     async def test_enabling_legacy_preserves_other_options_without_login(self):
         old_options = {
@@ -262,7 +325,12 @@ class ConfigFlowUnitTests(unittest.IsolatedAsyncioTestCase):
         for fingerprint in (None, "", " \t "):
             with self.subTest(fingerprint=fingerprint):
                 flow = self.module.UltraSyncConfigFlow()
-                submitted = {**_DATA, "legacy_ssl": True, "host": "http://Panel.test:8443"}
+                submitted = {
+                    **_DATA,
+                    "legacy_ssl": True,
+                    "host": "http://Panel.test:8443",
+                    "port": 65535,
+                }
                 if fingerprint is not None:
                     submitted["ssl_fingerprint"] = fingerprint
                 expected = {**submitted, "ssl_fingerprint": _FINGERPRINT}
@@ -279,15 +347,15 @@ class ConfigFlowUnitTests(unittest.IsolatedAsyncioTestCase):
                     self.assertEqual(result["step_id"], "confirm_certificate")
                     self.assertEqual(
                         result["description_placeholders"],
-                        {"host": "https://panel.test:8443", "fingerprint": _FINGERPRINT},
+                        {"host": "https://panel.test:65535", "fingerprint": _FINGERPRINT},
                     )
                     self.assertEqual(result["data_schema"]({}), {})
                     # Discovery is a handshake with only the origin, never a
                     # client construction or a call carrying the user's PIN.
-                    discover.assert_called_once_with("https://panel.test:8443")
+                    discover.assert_called_once_with("https://panel.test:65535")
                     self.assertEqual(
                         flow.hass.executor_calls,
-                        [(discover, ("https://panel.test:8443",))],
+                        [(discover, ("https://panel.test:65535",))],
                     )
                     factory.assert_not_called()
                     client.login.assert_not_called()
@@ -308,8 +376,11 @@ class ConfigFlowUnitTests(unittest.IsolatedAsyncioTestCase):
         for fingerprint in (None, "", " \t "):
             with self.subTest(fingerprint=fingerprint):
                 old_options = {"scan_interval": 17, "future_option": "keep"}
-                flow = self.options_flow(options=old_options)
-                submitted = {"legacy_ssl": True, "scan_interval": 11}
+                flow = self.options_flow(
+                    data={**_DATA, "host": "https://panel.test:443", "port": 8443},
+                    options=old_options,
+                )
+                submitted = {"legacy_ssl": True, "scan_interval": 11, "port": 65535}
                 if fingerprint is not None:
                     submitted["ssl_fingerprint"] = fingerprint
                 with (
@@ -320,6 +391,10 @@ class ConfigFlowUnitTests(unittest.IsolatedAsyncioTestCase):
                 ):
                     result = await flow.async_step_init(submitted)
                     self.assertEqual(result["step_id"], "confirm_certificate")
+                    self.assertEqual(
+                        result["description_placeholders"]["host"],
+                        "https://panel.test:65535",
+                    )
                     self.assertEqual(flow.config_entry.options, old_options)
                     factory.assert_not_called()
                     self.assertEqual(await flow.async_step_confirm_certificate(), result)
@@ -329,7 +404,7 @@ class ConfigFlowUnitTests(unittest.IsolatedAsyncioTestCase):
                         accepted["data"],
                         {**old_options, **submitted, "ssl_fingerprint": _FINGERPRINT},
                     )
-                    discover.assert_called_once_with("https://panel.test")
+                    discover.assert_called_once_with("https://panel.test:65535")
                     factory.assert_not_called()
                 self.assertEqual(flow.config_entry.options, old_options)
 
@@ -346,7 +421,7 @@ class ConfigFlowUnitTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(result["type"], "form")
             self.assertEqual(result["step_id"], "user")
             self.assertEqual(result["errors"], {"base": "cannot_discover_certificate"})
-            self.assertEqual(result["data_schema"]({}), submitted)
+            self.assertEqual(result["data_schema"]({}), {**submitted, "port": 65535})
             discover.assert_called_once_with("https://panel.test")
             factory.assert_not_called()
             stale = await flow.async_step_confirm_certificate({})
@@ -366,7 +441,7 @@ class ConfigFlowUnitTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(result["type"], "form")
             self.assertEqual(result["step_id"], "init")
             self.assertEqual(result["errors"], {"base": "cannot_discover_certificate"})
-            self.assertEqual(result["data_schema"]({}), submitted)
+            self.assertEqual(result["data_schema"]({}), {**submitted, "port": 65535})
             self.assertEqual(flow.config_entry.options, old_options)
             discover.assert_called_once_with("https://panel.test")
             factory.assert_not_called()

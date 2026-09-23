@@ -18,17 +18,27 @@ on a trusted local network.
    Keep your existing UltraSync integration entry: the domain and entity IDs
    have not changed. For a manual installation, replace only
    `/config/custom_components/ultrasync` with this fork's component directory.
-2. Open UltraSync's integration options, enable **Use legacy SSL 3.0**, and
-   leave **Panel certificate SHA-256 fingerprint** blank. The same settings
-   are also available during new integration setup.
-3. Submit the form. The integration connects to the panel without sending
+2. Open UltraSync's integration options, select **Port**, and enable **Use
+   legacy SSL 3.0**. The port defaults to **65535** unless a port is already
+   saved or included in Host; select your panel's actual HTTPS port. Keep an
+   existing trusted fingerprint, or leave **Panel certificate SHA-256
+   fingerprint** blank to retrieve it. These settings are also available
+   during new integration setup.
+3. Submit the form. If the fingerprint is blank, the integration connects to the panel without sending
    credentials and displays its HTTPS address and certificate fingerprint.
    Check that the address is your panel on a trusted local network, then
    select **Submit** to trust and save that certificate.
 4. New setup checks your login after confirmation. Saving options reloads
    the existing integration without opening a second login beforehand.
    Legacy mode uses HTTPS even if the saved host is a bare address or starts
-   with `http://`. The default HTTPS port is 443; an explicit port is retained.
+   with `http://`. The Port field overrides any port included in Host, and
+   certificate discovery and regular polling use the same selection.
+
+Upgrading does not automatically change an existing connection. To move an
+existing integration to port 65535, open its options, set **Port** to **65535**,
+keep **Use legacy SSL 3.0** enabled, and submit. You do not need to remove or
+recreate the integration or its entities. Entries without a saved Port field
+retain their previous connection behavior until options are saved.
 
 Certificate discovery performs only an SSL handshake: it sends no HTTP
 request, username or PIN. No credentials are sent using a discovered
@@ -64,10 +74,10 @@ environment:
 
 ```console
 python -m pip install ultrasync==1.0.3 tlslite-ng==0.8.2
-python tools/comnav_ssl3.py https://192.0.2.10 --discover-certificate
+python tools/comnav_ssl3.py https://192.0.2.10:65535 --discover-certificate
 ```
 
-Replace the example address with your panel's address. Discovery performs an
+Replace the example address and port with your panel's settings. Discovery performs an
 SSL handshake and prints the presented certificate fingerprint. It sends no
 HTTP request, username, or PIN. Discovery alone does not authenticate a device:
 confirm the address and fingerprint through a trusted local connection or an
@@ -76,7 +86,7 @@ independently recorded certificate before using the result.
 After recording that fingerprint, check the anonymous login page:
 
 ```console
-python tools/comnav_ssl3.py https://192.0.2.10 --fingerprint YOUR_SHA256_FINGERPRINT
+python tools/comnav_ssl3.py https://192.0.2.10:65535 --fingerprint YOUR_SHA256_FINGERPRINT
 ```
 
 For a read-only login and status check, add `--username YOUR_PANEL_USER`. The
@@ -101,8 +111,10 @@ the same account can invalidate its existing session.
   the panel before deliberately replacing a saved fingerprint.
 - This does not stop the panel changing its own HTTPS setting, reboot a hung
   module, or restore a device whose network services have stopped responding.
-- Disabling the option returns to the originally configured host and normal
-  transport; it does not alter the panel's Require SSL setting.
+- Disabling legacy SSL returns to the scheme in Host and normal transport.
+  The selected port is retained; change it too if your HTTP or standard HTTPS
+  service uses a different port. This does not alter the panel's Require SSL
+  setting.
 
 ## Validation
 

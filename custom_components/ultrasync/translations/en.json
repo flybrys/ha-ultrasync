@@ -6,13 +6,14 @@
     },
     "error": {
       "cannot_connect": "Failed to connect",
-      "invalid_legacy_ssl": "Enter a valid panel host. If you enter a certificate fingerprint, it must contain 64 hexadecimal characters; otherwise leave it blank to discover the certificate.",
+      "invalid_legacy_ssl": "Enter a valid panel host and a port from 1 to 65535. If you enter a certificate fingerprint, it must contain 64 hexadecimal characters; otherwise leave it blank to discover the certificate.",
       "cannot_discover_certificate": "Could not retrieve the panel's certificate. Check that its address is correct and its HTTPS service is available, then try again."
     },
     "flow_title": "Interlogix UltraSync Hub: {name}",
     "step": {
       "user": {
         "data": {
+          "port": "Port",
           "host": "Host",
           "name": "Name",
           "pin": "PIN Code",
@@ -21,7 +22,7 @@
           "ssl_fingerprint": "Panel certificate SHA-256 fingerprint (optional)"
         },
         "title": "Connect to Interlogix UltraSync Hub",
-        "description": "Enable legacy SSL 3.0 only for older Hills ComNav panels that require it. SSL 3.0 is obsolete; use it on a trusted local network. Leave the fingerprint blank to retrieve and confirm the panel's certificate, or enter a known fingerprint. Legacy mode uses HTTPS."
+        "description": "Port defaults to 65535 unless a port is already saved. Use your panel's configured port (usually 80 for HTTP or 443 for standard HTTPS). Port overrides any port in Host. Enable legacy SSL 3.0 only for older Hills ComNav panels that require it. SSL 3.0 is obsolete; use it on a trusted local network. Leave the fingerprint blank to retrieve and confirm the panel's certificate, or enter a known fingerprint. Legacy mode uses HTTPS."
       },
       "confirm_certificate": {
         "title": "Confirm panel certificate",
@@ -33,11 +34,12 @@
     "step": {
       "init": {
         "data": {
+          "port": "Port",
           "scan_interval": "Update frequency (seconds)",
           "legacy_ssl": "Use legacy SSL 3.0 (Hills ComNav only)",
           "ssl_fingerprint": "Panel certificate SHA-256 fingerprint (optional)"
         },
-        "description": "Enable legacy SSL 3.0 only for older Hills ComNav panels that require it. SSL 3.0 is obsolete; use it on a trusted local network. Leave the fingerprint blank to retrieve and confirm the panel's certificate, or enter a known fingerprint. To replace a saved fingerprint, clear it and confirm the newly retrieved certificate. Legacy mode uses HTTPS."
+        "description": "Port defaults to 65535 unless a port is already saved. Use your panel's configured port (usually 80 for HTTP or 443 for standard HTTPS). Port overrides any port in Host. Enable legacy SSL 3.0 only for older Hills ComNav panels that require it. SSL 3.0 is obsolete; use it on a trusted local network. Leave the fingerprint blank to retrieve and confirm the panel's certificate, or enter a known fingerprint. To replace a saved fingerprint, clear it and confirm the newly retrieved certificate. Legacy mode uses HTTPS. Saving these options reloads the integration."
       },
       "confirm_certificate": {
         "title": "Confirm panel certificate",
@@ -45,7 +47,7 @@
       }
     },
     "error": {
-      "invalid_legacy_ssl": "Enter a valid panel host. If you enter a certificate fingerprint, it must contain 64 hexadecimal characters; otherwise leave it blank to discover the certificate.",
+      "invalid_legacy_ssl": "Enter a valid panel host and a port from 1 to 65535. If you enter a certificate fingerprint, it must contain 64 hexadecimal characters; otherwise leave it blank to discover the certificate.",
       "cannot_discover_certificate": "Could not retrieve the panel's certificate. Check that its address is correct and its HTTPS service is available, then try again."
     },
     "abort": {
